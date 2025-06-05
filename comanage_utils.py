@@ -99,6 +99,7 @@ def call_api3(method, target, data, endpoint, authstr, **kw):
             resp = urllib.request.urlopen(req, timeout=current_timeout)
         # exception catching, mainly for request timeouts, "Service Temporarily Unavailable" (Rate limiting), and DNS failures.
         except urllib.error.URLError as exception:
+            print(exception)
             req_attempts += 1
             if req_attempts >= MAX_ATTEMPTS:
                 raise URLRequestError(
@@ -138,6 +139,18 @@ def get_co_group(gid, endpoint, authstr):
     if not grouplist:
         raise RuntimeError("No such CO Group Id: %s" % gid)
     return grouplist[0]
+
+
+def core_api_co_person_read(identifier, coid, endpoint, authstr):
+    return call_api(f"api/co/{coid}/core/v1/people/{identifier}", endpoint, authstr)
+
+
+def core_api_co_person_create(data, coid, endpoint, authstr):
+    return call_api3(POST, f"api/co/{coid}/core/v1/people/", data, endpoint, authstr)
+
+
+def core_api_co_person_update(identifier, coid, data, endpoint, authstr):
+    return call_api3(PUT, f"api/co/{coid}/core/v1/people/{identifier}", data, endpoint, authstr)
 
 
 def get_identifier(id_, endpoint, authstr):
@@ -188,6 +201,23 @@ def identifier_matches(id_list, id_type, regex_string):
     pattern = re.compile(regex_string)
     value = identifier_from_list(id_list, id_type)
     return (value is not None) and (pattern.match(value) is not None)
+
+
+def create_co_group(groupname, description, coId, endpoint, authstr, open=False,):
+    group_info = {
+        "Version"     : "1.0",
+        "CoId"        : coId,
+        "Name"        : groupname,
+        "Description" : description,
+        "Open"        : open,
+        "Status"      : "Active",
+    }
+    data = {
+        "CoGroups"    : [group_info],
+        "RequestType" : "CoGroups",
+        "Version"     : "1.0"
+    }
+    return call_api3(POST, "co_groups/.json", data, endpoint, authstr)
 
 
 def rename_co_group(gid, group, newname, endpoint, authstr):
