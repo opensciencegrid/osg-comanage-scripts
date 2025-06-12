@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
 
 import os
-import re
 import sys
 import json
 import getopt
-import collections
 import comanage_utils as utils
 import comanage_person_schema_utils as schema_utils
 
@@ -13,6 +11,8 @@ SCRIPT = os.path.basename(__file__)
 ENDPOINT = "https://registry.cilogon.org/registry/"
 OSG_CO_ID = 7
 CMS_GROUP_ID = 4622
+CMS_COU_ID = 1785
+LDAP_TARGET_ID = 9
 
 _usage = f"""\
 usage: [PASS=...] {SCRIPT} [OPTIONS]
@@ -33,7 +33,8 @@ class Options:
     input_file = None
     mapping_file = None
     ssh_key_authenticator = 5
-    unix_cluster_id = 5
+    unix_cluster_id = 10
+    provisioning_target = LDAP_TARGET_ID
 
 
 options = Options()
@@ -101,7 +102,10 @@ def build_co_person_record(entry):
     #globus id
     identifiers.append(schema_utils.co_person_identifier(entry["globus_id"], "cmsglobusid", status="A"))
     #cilogon id
-    identifiers.append(schema_utils.co_person_identifier(entry["cilogon_id"], "oidcsub", status="A"))
+    if not entry["cilogon_id"] is None:
+        identifiers.append(schema_utils.co_person_identifier(entry["cilogon_id"], "oidcsub", status="A"))
+    else:
+        print(f"Warning: user {entry['username']} lacks a cilogon id.")
 
     record.update({"Identifier" : identifiers })
 
@@ -110,6 +114,11 @@ def build_co_person_record(entry):
 
     # Group Memberships
     record.update({"CoGroupMember" : group_memberships })
+
+    roles = []
+
+    roles.append(schema_utils.co_person_role(CMS_COU_ID, "CMS User", "member", 1))
+    record.update({"CoPersonRole" : roles })
 
     emails = []
 
@@ -136,10 +145,10 @@ def build_co_person_record(entry):
     return record
 
 
-def add_unix_cluster_group(co_person_record):
+def create_unix_cluster_group(co_person_record):
     identifiers_list = co_person_record["Identifier"]
-    username = next((item for item in identifiers_list if item["type"] == "osguser"))
-    uid = next((item for item in identifiers_list if item["type"] == "uid"))
+    username = next((item["identifier"] for item in identifiers_list if item["type"] == "osguser"))
+    uid = next((item["identifier"] for item in identifiers_list if item["type"] == "uid"))
     description = f"Unix Cluster Group for {username}"
     result = utils.create_co_group(username, description, options.osg_co_id, options.endpoint, options.authstr)
     ucg = None
@@ -148,9 +157,10 @@ def add_unix_cluster_group(co_person_record):
         utils.add_identifier_to_group(group_id, "osggid", uid, options.endpoint, options.authstr)
         utils.add_identifier_to_group(group_id, "osggroup", username, options.endpoint, options.authstr)
         ucg = utils.add_unix_cluster_group(group_id, options.unix_cluster_id, options.endpoint, options.authstr)
+        utils.provision_group(group_id, options.provisioning_target, options.endpoint, options.authstr)
     #TODO throw catch on new group creation
     if not (ucg is None) and ("ResponseType" in ucg) and (ucg["ResponseType"] == "NewObject"):
-        return ucg["Id"]
+        return(result["Id"])
     else:
         raise ValueError(f"Failed to create CO Group for Unix Cluster Group, results were: {result} and {ucg}")
 
@@ -158,23 +168,21 @@ def add_unix_cluster_group(co_person_record):
 def add_unix_cluster_account(co_person_record):
     identifiers_list = co_person_record["Identifier"]
     names_list = co_person_record["Name"]
-    groups_list =co_person_record["CoGroupMember"]
-    username = next((item for item in identifiers_list if item["type"] == "osguser"))
-    uid = next((item for item in identifiers_list if item["type"] == "uid"))
-    name = next((item for item in names_list if item["primary_name"] == True))
+    username = next((item["identifier"]  for item in identifiers_list if item["type"] == "osguser"))
+    uid = next((item["identifier"]  for item in identifiers_list if item["type"] == "uid"))
+    name_id = next((item for item in names_list if item["primary_name"] == True))
+    name = schema_utils.name_unsplit(name_id)
     default_group_id = -1
-    for membership in groups_list:
-        gid = membership["co_group_id"]
-        co_group_info = utils.get_co_group(gid, options.endpoint, options.authstr)
-        group_name = co_group_info["Name"]
-        if group_name == username:
-            default_group_id = gid
-            break
+    default_group_id = create_unix_cluster_group(co_person_record)
+    ucg_membership = schema_utils.co_person_group_member(default_group_id)
+    if "CoGroupMember" in co_person_record:
+        co_person_record["CoGroupMember"].append(ucg_membership)
+    else:
+        co_person_record.update({"CoGroupMember" : [ucg_membership]})
     if default_group_id != -1:
         uca = schema_utils.co_person_unix_cluster_acc(options.unix_cluster_id, username, uid, name, default_group_id)
-        print(uca)
         if "UnixClusterAccount" in co_person_record:
-            co_person_record.update({"UnixClusterAccount" : co_person_record["UnixClusterAccount"].append(uca)})
+            co_person_record["UnixClusterAccount"].append(uca)
         else:
             co_person_record.update({"UnixClusterAccount" : [uca]})
     return co_person_record
@@ -183,24 +191,43 @@ def add_unix_cluster_account(co_person_record):
 def main(args):
     parse_options(args)
 
-    co_person_records = []
+    co_person_records = dict()
 
     data_dump_json = read_data_dump()
     for entry in data_dump_json:
-        co_person_records.append(build_co_person_record(entry))
+        co_person_records.update({entry["username"] : build_co_person_record(entry)})
 
-    print(co_person_records[0])
-    print(len(co_person_records))
+    usernames = list(co_person_records.keys())
 
-    results = utils.core_api_co_person_create(data=co_person_records[0], coid=options.osg_co_id, endpoint=options.endpoint, authstr=options.authstr)
+    for user in usernames:
 
-    print(results)
+        try:
+            try:
+                #If the CO Person record exists, stop creating/modifying (TODO: switch to modifying existing user rather than trying to create)
+                if utils.core_api_co_person_read(user, options.osg_co_id, options.endpoint, options.authstr):
+                    continue
+            except utils.HTTPRequestError as e:
+                # If the record *doesn't* exist, pass and make it. Else, some other error happened on our read, like 403 or 500 and we'll try again on another run.
+                if e.code == 404:
+                    pass
+                else:
+                    break
+            print(f"CREATING RECORDS FOR USER: {user}")
+            results_create = utils.core_api_co_person_create(data=co_person_records[user], coid=options.osg_co_id,     endpoint=options.endpoint, authstr=options.authstr)
 
-    co_person_read = utils.core_api_co_person_read("abbashassani", options.osg_co_id, options.endpoint, options.authstr)
+            co_person_data = utils.core_api_co_person_read(user, options.osg_co_id, options.endpoint, options.authstr)
 
-    print(co_person_read)
+            co_person_data = add_unix_cluster_account(co_person_data)
 
-    print(add_unix_cluster_account(co_person_read))
+            utils.core_api_co_person_update(user, options.osg_co_id, co_person_data, options.endpoint, options.authstr)
+        except Exception as e:
+            print(f"\tException for user {user}.")
+            print(f"\t{e}")
+            if results_create:
+                print(f"\t{results_create}")
+                if co_person_data:
+                    print(f"\t{co_person_data}")
+
     # Read in dump to build / update users from
         # select which field of the dump co-responds to the identifier we'll use to index the corresponding CO Person
         # mapping file from dump attributes to COmanage object types, so we know what each dump attribute should become
