@@ -30,6 +30,8 @@ TEST_LDAP_TARGET_ID = 9
 TIMEOUT_BASE = 5
 MAX_ATTEMPTS = 5
 
+# HTTP return codes we shouldn't attempt to retry
+HTTP_NO_RETRY_CODES = {403, 404, 405, 500}
 
 GET    = "GET"
 PUT    = "PUT"
@@ -45,6 +47,16 @@ class Error(Exception):
 class URLRequestError(Error):
     """Class for exceptions due to not being able to fulfill a URLRequest"""
     pass
+
+
+class HTTPRequestError(URLRequestError):
+    """Class for exceptions due to not being able to fulfill a HTTPRequest"""
+    def __init__(self, message, code): 
+        self.message = message
+        self.code = code
+
+    def __str__(self):
+        return self.message
 
 
 def getpw(user, passfd, passfile):
@@ -99,8 +111,15 @@ def call_api3(method, target, data, endpoint, authstr, **kw):
             resp = urllib.request.urlopen(req, timeout=current_timeout)
         # exception catching, mainly for request timeouts, "Service Temporarily Unavailable" (Rate limiting), and DNS failures.
         except urllib.error.URLError as exception:
-            print(exception)
             req_attempts += 1
+            # If the exception was an HTTPError, with a code like 404 that won't change on a retry, fail fast
+            if issubclass(exception.__class__, urllib.error.HTTPError) and exception.code in HTTP_NO_RETRY_CODES:
+                raise HTTPRequestError(
+                    "Exception raised due to api call error status"
+                + f"Exception reason: {exception}.\n Request: {req.full_url}",
+                code=exception.code
+                )
+            # Since we think the expection *might* be transient, continue with retry logic
             if req_attempts >= MAX_ATTEMPTS:
                 raise URLRequestError(
                     "Exception raised after maximum number of retries reached after total backoff of " + 
