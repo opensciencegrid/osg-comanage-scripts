@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 
-CO_PERSON = {"co_id": None, "timezone": None, "dateofbirth": None, "status": None}
+CO_PERSON = {
+    "co_id": None,
+    "timezone": None,
+    "dateofbirth": None,
+    "status": None
+    }
 
 IDENTIFIER = {
     "identifier": None,
