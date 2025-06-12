@@ -58,6 +58,20 @@ ORG_IDENTITY = {
 }
 
 
+ROLE = {
+    "cou_id": None,
+    "title": "",
+    "o": "",
+    "ou": "",
+    "valid_from": None,
+    "valid_through": None,
+    "status": "A",
+    "sponsor_co_person_id": None,
+    "affiliation": "member",
+    "ordr": 1,
+}
+
+
 EMAIL_ADDRESS = {
     "mail": None,
     "type": None,
@@ -161,6 +175,14 @@ def co_person_org_id(
     org_id["Name"] = name
     return org_id
 
+
+def co_person_role(cou, title, affiliation, order):
+    role = ROLE.copy()
+    role["cou_id"] = cou
+    role["title"] = title
+    role["affiliation"] = affiliation
+    role["ordr"] = order
+    return role
 
 def co_person_email_address(mail, type="delivery", verified=False):
     email = EMAIL_ADDRESS.copy()
