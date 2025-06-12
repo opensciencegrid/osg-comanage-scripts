@@ -119,12 +119,24 @@ def co_person_name(given, family=None, middle=None, type="official", primary=Fal
 def name_split(whole_name):
     name_sections = str(whole_name).split()
     parts_count = len(name_sections)
-    if parts_count == 1 or parts_count > 3:
-        return co_person_name(whole_name)
+    if parts_count == 1:
+        return co_person_name(given=whole_name)
     elif parts_count == 2:
-        return co_person_name(name_sections[0], name_sections[1])
+        return co_person_name(given=name_sections[0], family=name_sections[1])
     else:
-        return co_person_name(co_person_name(name_sections[0], name_sections[2], name_sections[1]))
+        return co_person_name(given=name_sections[0], family=name_sections[parts_count-1], middle=" ".join(name_sections[1:parts_count-1]))
+
+
+def name_unsplit(name_id):
+    if name_id["given"] is None:
+        return ""
+    elif name_id["family"] is None:
+        return name_id["given"]
+    elif name_id["middle"] is None:
+        return f'{name_id["given"]} {name_id["family"]}'
+    else:
+        return f'{name_id["given"]} {name_id["middle"]} {name_id["family"]}'
+
 
 
 def co_person_group_member(group_id, member=True, owner=False):
