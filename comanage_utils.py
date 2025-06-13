@@ -31,7 +31,8 @@ TIMEOUT_BASE = 5
 MAX_ATTEMPTS = 5
 
 # HTTP return codes we shouldn't attempt to retry
-HTTP_NO_RETRY_CODES = {403, 404, 405, 500}
+#HTTP_NO_RETRY_CODES = {403, 404, 405, 500}
+HTTP_NO_RETRY_CODES = {404, 405, 500}
 
 GET    = "GET"
 PUT    = "PUT"
@@ -119,7 +120,7 @@ def call_api3(method, target, data, endpoint, authstr, **kw):
                 + f"Exception reason: {exception}.\n Request: {req.full_url}",
                 code=exception.code
                 )
-            # Since we think the expection *might* be transient, continue with retry logic
+            # Since we think the exception *might* be transient, continue with retry logic
             if req_attempts >= MAX_ATTEMPTS:
                 raise URLRequestError(
                     "Exception raised after maximum number of retries reached after total backoff of " + 
