@@ -185,7 +185,7 @@ def add_unix_cluster_account(co_person_record):
             co_person_record["UnixClusterAccount"].append(uca)
         else:
             co_person_record.update({"UnixClusterAccount" : [uca]})
-    return co_person_record
+    return co_person_record, default_group_id
 
 
 def main(args):
@@ -217,9 +217,11 @@ def main(args):
 
             co_person_data = utils.core_api_co_person_read(user, options.osg_co_id, options.endpoint, options.authstr)
 
-            co_person_data = add_unix_cluster_account(co_person_data)
+            co_person_data, gid = add_unix_cluster_account(co_person_data)
 
             utils.core_api_co_person_update(user, options.osg_co_id, co_person_data, options.endpoint, options.authstr)
+
+            utils.provision_group(gid, options.provisioning_target, options.endpoint, options.authstr)
         except Exception as e:
             print(f"\tException for user {user}.")
             print(f"\t{e}")
