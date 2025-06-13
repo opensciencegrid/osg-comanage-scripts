@@ -200,6 +200,8 @@ def main(args):
     usernames = list(co_person_records.keys())
 
     for user in usernames:
+        co_person_data = None
+        results_create = None
 
         try:
             try:
