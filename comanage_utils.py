@@ -190,8 +190,35 @@ def get_unix_cluster_groups_ids(ucid, endpoint, authstr):
     return set(group["CoGroupId"] for group in unix_cluster_groups["UnixClusterGroups"])
 
 
+def update_co_person_identifier(id_, type, identifier, person_id, endpoint, authstr, provisioning_target):
+    id_data = {
+      "RequestType":"Identifiers",
+      "Version":"1.0",
+      "Identifiers":
+      [
+        {
+          "Version":"1.0",
+          "Type":type,
+          "Identifier":identifier,
+          "Login":False,
+          "Person":{"Type":"CO","Id":person_id},
+          "CoProvisioningTargetId":provisioning_target,
+          "Status":"Active"
+        }
+      ]
+    }
+    return call_api3(PUT, "/api/v2/identifiers" % id_, id_data, endpoint, authstr, )
+    #return call_api3(PUT, "identifiers/%s.json" % id_, id_data, endpoint, authstr)
+
+
 def delete_identifier(id_, endpoint, authstr):
     return call_api2(DELETE, "identifiers/%s.json" % id_, endpoint, authstr)
+
+
+def get_co_group_members_pids(gid, endpoint, authstr):
+    resp_data = get_co_group_members(gid, endpoint, authstr)
+    data = get_datalist(resp_data, "CoGroupMembers")
+    return [m["Person"]["Id"] for m in data]
 
 
 def get_datalist(data, listname):
@@ -213,6 +240,14 @@ def identifier_from_list(id_list, id_type):
     try:
         id_index = id_type_list.index(id_type)
         return id_list[id_index]["Identifier"]
+    except ValueError:
+        return None
+
+def full_identifier_from_list(id_list, id_type):
+    id_type_list = [id["Type"] for id in id_list]
+    try:
+        id_index = id_type_list.index(id_type)
+        return id_list[id_index]
     except ValueError:
         return None
 

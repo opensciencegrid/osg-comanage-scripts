@@ -10,8 +10,6 @@ import comanage_person_schema_utils as schema_utils
 SCRIPT = os.path.basename(__file__)
 ENDPOINT = "https://registry.cilogon.org/registry/"
 OSG_CO_ID = 7
-CMS_GROUP_ID = 4622
-CMS_COU_ID = 1785
 LDAP_TARGET_ID = 9
 
 _usage = f"""\
@@ -32,16 +30,18 @@ class Options:
     authstr = None
     input_file = None
     mapping_file = None
-    ssh_key_authenticator = 5
-    unix_cluster_id = 10
+    ssh_key_authenticator = 5 # 1
+    unix_cluster_id = 10 # 1
     provisioning_target = LDAP_TARGET_ID
+    import_group_id = None
+    import_cou_id = None
 
 
 options = Options()
 
 def parse_options(args):
     try:
-        ops, args = getopt.getopt(args, 'u:c:d:f:e:i:m:h')
+        ops, args = getopt.getopt(args, 'u:c:d:f:e:i:m:g:o:h')
     except getopt.GetoptError:
         usage()
 
@@ -60,6 +60,8 @@ def parse_options(args):
         if op == '-e': options.endpoint   = arg
         if op == '-i': options.input_file = arg
         if op == '-m': options.mapping_file = arg
+        if op == '-g': options.import_group_id = arg
+        if op == '-o': options.import_cou_id = arg
 
     try:
         user, passwd = utils.getpw(options.user, passfd, passfile)
@@ -82,10 +84,10 @@ def read_data_dump():
                     data_json[entry]["public_keys"][key_index].update({"authenticator" : key_sections[2]})
     with open(options.mapping_file, 'r', encoding='utf-8') as mapping_file:
         mapping_json = json.load(mapping_file)
-    return data_json
+    return data_json, mapping_json
 
 
-def build_co_person_record(entry):
+def build_co_person_record(entry, mapping_json : dict):
     record = {}
     record.update({"CoPerson" : schema_utils.co_person_schema(options.osg_co_id, status="A")})
     
@@ -95,29 +97,37 @@ def build_co_person_record(entry):
 
     identifiers = []
 
-    # CMS Username
-    identifiers.append(schema_utils.co_person_identifier(entry["username"], "cmsuser", status="A"))
-    # CMS UID
-    identifiers.append(schema_utils.co_person_identifier(entry["uid"], "cmsuid", status="A"))
+    # UC Connect Username
+    identifiers.append(schema_utils.co_person_identifier(entry["username"], "ucconnectuser", status="A"))
+    # UC Connect UID
+    identifiers.append(schema_utils.co_person_identifier(entry["uid"], "ucconnectuid", status="A"))
     #globus id
-    identifiers.append(schema_utils.co_person_identifier(entry["globus_id"], "cmsglobusid", status="A"))
+    identifiers.append(schema_utils.co_person_identifier(entry["globus_id"], "ucconnectglobusid", status="A"))
     #cilogon id
-    if not entry["cilogon_id"] is None:
-        identifiers.append(schema_utils.co_person_identifier(entry["cilogon_id"], "oidcsub", status="A"))
+    if not (entry["cilogon_oidc_sub"] is None or entry["cilogon_oidc_sub"] == ""):
+        identifiers.append(schema_utils.co_person_identifier(entry["cilogon_oidc_sub"], "oidcsub", status="A"))
     else:
         print(f"Warning: user {entry['username']} lacks a cilogon id.")
+        # With our current LDAP Provisioner configuration, the CO Person still needs an oidcsub identifier, even if it's junk 
+        identifiers.append(schema_utils.co_person_identifier(f"dummy-text-for-provisioning-{entry['username']}", "oidcsub", status="A", login=False))
 
     record.update({"Identifier" : identifiers })
 
     group_memberships = []
-    group_memberships.append(schema_utils.co_person_group_member(CMS_GROUP_ID))
+    group_memberships.append(schema_utils.co_person_group_member(options.import_group_id))
+
+    for user_membership in entry["groups"]:
+        if not mapping_json.get(user_membership) is None:
+            group_memberships.append(schema_utils.co_person_group_member(mapping_json.get(user_membership)))
+        else:
+            print(f"Warning: could not find group id for group {user_membership}, user {entry['username']}.")
 
     # Group Memberships
     record.update({"CoGroupMember" : group_memberships })
 
     roles = []
 
-    roles.append(schema_utils.co_person_role(CMS_COU_ID, "CMS User", "member", 1))
+    roles.append(schema_utils.co_person_role(options.import_cou_id, "UC Connect User", "member", 1))
     record.update({"CoPersonRole" : roles })
 
     emails = []
@@ -141,6 +151,15 @@ def build_co_person_record(entry):
         auth_id = options.ssh_key_authenticator
         ssh_keys.append(schema_utils.co_person_sshkey(type=key_type, skey=public_key, comment=comment, auth_id=auth_id))
     record.update({"SshKey" : ssh_keys})
+
+    return record
+
+def fix_username(co_person_record, new_username):
+    record = co_person_record
+
+    for identifier in co_person_record["Identifier"]:
+        if identifier["type"] == "osguser":
+            identifier["identifier"] = new_username
 
     return record
 
@@ -193,9 +212,12 @@ def main(args):
 
     co_person_records = dict()
 
-    data_dump_json = read_data_dump()
+    data_dump_json, mapping_json = read_data_dump()
+
+    #data_dump_json = [data_dump_json[0], data_dump_json[1], data_dump_json[2], data_dump_json[3], data_dump_json[8], data_dump_json[9]]
+
     for entry in data_dump_json:
-        co_person_records.update({entry["username"] : build_co_person_record(entry)})
+        co_person_records.update({entry["username"] : build_co_person_record(entry, mapping_json)})
 
     usernames = list(co_person_records.keys())
 
@@ -218,6 +240,9 @@ def main(args):
             results_create = utils.core_api_co_person_create(data=co_person_records[user], coid=options.osg_co_id,     endpoint=options.endpoint, authstr=options.authstr)
 
             co_person_data = utils.core_api_co_person_read(user, options.osg_co_id, options.endpoint, options.authstr)
+
+            co_person_data = fix_username(co_person_data, user)
+            utils.core_api_co_person_update(user, options.osg_co_id, co_person_data, options.endpoint, options.authstr)
 
             co_person_data, gid = add_unix_cluster_account(co_person_data)
 
