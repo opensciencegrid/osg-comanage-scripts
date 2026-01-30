@@ -10,7 +10,7 @@ import comanage_person_schema_utils as schema_utils
 SCRIPT = os.path.basename(__file__)
 ENDPOINT = "https://registry.cilogon.org/registry/"
 OSG_CO_ID = 7
-LDAP_TARGET_ID = 9
+LDAP_TARGET_ID = 6
 
 _usage = f"""\
 usage: [PASS=...] {SCRIPT} [OPTIONS]
@@ -30,8 +30,8 @@ class Options:
     authstr = None
     input_file = None
     mapping_file = None
-    ssh_key_authenticator = 5 # 1
-    unix_cluster_id = 10 # 1
+    ssh_key_authenticator = 1
+    unix_cluster_id = 1
     provisioning_target = LDAP_TARGET_ID
     import_group_id = None
     import_cou_id = None
