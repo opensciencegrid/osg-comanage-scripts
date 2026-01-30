@@ -32,6 +32,8 @@ TEST_LDAP_TARGET_ID = 9
 TIMEOUT_BASE = 5
 MAX_ATTEMPTS = 5
 
+# HTTP return codes we shouldn't attempt to retry
+HTTP_NO_RETRY_CODES = {401, 404, 405, 500}
 
 GET    = "GET"
 PUT    = "PUT"
@@ -47,6 +49,16 @@ class Error(Exception):
 class URLRequestError(Error):
     """Class for exceptions due to not being able to fulfill a URLRequest"""
     pass
+
+
+class HTTPRequestError(URLRequestError):
+    """Class for exceptions due to not being able to fulfill a HTTPRequest"""
+    def __init__(self, message, code): 
+        self.message = message
+        self.code = code
+
+    def __str__(self):
+        return self.message
 
 
 def getpw(user, passfd, passfile):
@@ -110,6 +122,14 @@ def call_api3(method, target, data, endpoint, authstr, **kw):
         # exception catching, mainly for request timeouts, "Service Temporarily Unavailable" (Rate limiting), and DNS failures.
         except urllib.error.URLError as exception:
             req_attempts += 1
+            # If the exception was an HTTPError, with a code like 404 that won't change on a retry, fail fast
+            if issubclass(exception.__class__, urllib.error.HTTPError) and exception.code in HTTP_NO_RETRY_CODES:
+                raise HTTPRequestError(
+                    "Exception raised due to api call error status"
+                + f"Exception reason: {exception}.\n Request: {req.full_url}",
+                code=exception.code
+                )
+            # Since we think the exception *might* be transient, continue with retry logic
             if req_attempts >= MAX_ATTEMPTS:
                 raise URLRequestError(
                     "Exception raised after maximum number of retries reached after total backoff of " + 
@@ -150,6 +170,18 @@ def get_co_group(gid, endpoint, authstr):
     return grouplist[0]
 
 
+def core_api_co_person_read(identifier, coid, endpoint, authstr):
+    return call_api(f"api/co/{coid}/core/v1/people/{identifier}", endpoint, authstr)
+
+
+def core_api_co_person_create(data, coid, endpoint, authstr):
+    return call_api3(POST, f"api/co/{coid}/core/v1/people/", data, endpoint, authstr)
+
+
+def core_api_co_person_update(identifier, coid, data, endpoint, authstr):
+    return call_api3(PUT, f"api/co/{coid}/core/v1/people/{identifier}", data, endpoint, authstr)
+
+
 def get_identifier(id_, endpoint, authstr):
     resp_data = call_api("identifiers/%s.json" % id_, endpoint, authstr)
     idfs = get_datalist(resp_data, "Identifiers")
@@ -167,8 +199,35 @@ def get_unix_cluster_groups_ids(ucid, endpoint, authstr):
     return set(group["CoGroupId"] for group in unix_cluster_groups["UnixClusterGroups"])
 
 
+def update_co_person_identifier(id_, type, identifier, person_id, endpoint, authstr, provisioning_target):
+    id_data = {
+      "RequestType":"Identifiers",
+      "Version":"1.0",
+      "Identifiers":
+      [
+        {
+          "Version":"1.0",
+          "Type":type,
+          "Identifier":identifier,
+          "Login":False,
+          "Person":{"Type":"CO","Id":person_id},
+          "CoProvisioningTargetId":provisioning_target,
+          "Status":"Active"
+        }
+      ]
+    }
+    return call_api3(PUT, "/api/v2/identifiers" % id_, id_data, endpoint, authstr, )
+    #return call_api3(PUT, "identifiers/%s.json" % id_, id_data, endpoint, authstr)
+
+
 def delete_identifier(id_, endpoint, authstr):
     return call_api2(DELETE, "identifiers/%s.json" % id_, endpoint, authstr)
+
+
+def get_co_group_members_pids(gid, endpoint, authstr):
+    resp_data = get_co_group_members(gid, endpoint, authstr)
+    data = get_datalist(resp_data, "CoGroupMembers")
+    return [m["Person"]["Id"] for m in data]
 
 
 def get_datalist(data, listname):
@@ -220,11 +279,36 @@ def identifier_from_list(id_list, id_type):
     except ValueError:
         return None
 
+def full_identifier_from_list(id_list, id_type):
+    id_type_list = [id["Type"] for id in id_list]
+    try:
+        id_index = id_type_list.index(id_type)
+        return id_list[id_index]
+    except ValueError:
+        return None
+
 
 def identifier_matches(id_list, id_type, regex_string):
     pattern = re.compile(regex_string)
     value = identifier_from_list(id_list, id_type)
     return (value is not None) and (pattern.match(value) is not None)
+
+
+def create_co_group(groupname, description, coId, endpoint, authstr, open=False,):
+    group_info = {
+        "Version"     : "1.0",
+        "CoId"        : coId,
+        "Name"        : groupname,
+        "Description" : description,
+        "Open"        : open,
+        "Status"      : "Active",
+    }
+    data = {
+        "CoGroups"    : [group_info],
+        "RequestType" : "CoGroups",
+        "Version"     : "1.0"
+    }
+    return call_api3(POST, "co_groups/.json", data, endpoint, authstr)
 
 
 def rename_co_group(gid, group, newname, endpoint, authstr):
