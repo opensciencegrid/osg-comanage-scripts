@@ -284,7 +284,9 @@ def main(args):
             # UNIX Cluster Account
             # GroupMembership (?)
 
-    # Schema:
+    # Some Schema Info:
+    # See comanage_person_schema_utils.py and COmanage docs on co person schema and associated record types
+    # https://spaces.at.internet2.edu/spaces/COmanage/pages/25859280/cm_co_people
         # CoPerson
             # {
             # 'meta': {'id': , 'created': , 'modified': , 'co_person_id': , 'revision': , 'deleted': , 'actor_identifier': },
@@ -295,7 +297,10 @@ def main(args):
             # }
         # Identifier
             # {
-            # 
+            # 'meta': {'id': , 'created': , 'modified': , 'co_person_id': , 'revision': , 'deleted': , 'actor_identifier': },
+            #"identifier": None,
+            #"type": None,
+            #"login": False,
             # }
         # CoGroupMember 
             # Array of {
