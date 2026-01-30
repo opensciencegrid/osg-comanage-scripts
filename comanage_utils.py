@@ -31,8 +31,7 @@ TIMEOUT_BASE = 5
 MAX_ATTEMPTS = 5
 
 # HTTP return codes we shouldn't attempt to retry
-#HTTP_NO_RETRY_CODES = {403, 404, 405, 500}
-HTTP_NO_RETRY_CODES = {404, 405, 500}
+HTTP_NO_RETRY_CODES = {401, 404, 405, 500}
 
 GET    = "GET"
 PUT    = "PUT"
