@@ -258,7 +258,7 @@ def get_datalist(data, listname):
     return data[listname] if data else []
 
 
-class LDAPSearch:
+class LDAP_Server:
     """ Wrapper class for LDAP searches. """
     server: Server = None
     connection: Connection = None
@@ -267,11 +267,65 @@ class LDAPSearch:
         self.server = Server(ldap_server, get_info=ALL)
         self.connection = Connection(self.server, ldap_user, ldap_authtok, client_strategy=SAFE_SYNC, auto_bind=True)
 
-    def search(self, ou, filter_str, attrs):
-        _, _, response, _ = self.connection.search(f"ou={ou},{LDAP_BASE_DN}", filter_str, attributes=attrs)
+    def search(self, ou, search_base, filter_str, attrs):
+        # simple paged search
+        # https://github.com/cannatag/ldap3/blob/7991e67d0a2fb2c1f9cbf832d110ad29fc378f9b/docs/manual/source/standard.rst#L4
+        # https://ldap3.readthedocs.io/en/latest/tutorial_searches.html#simple-paged-search
+        response = self.connection.extend.standard.paged_search(
+            f"ou={ou},{search_base}",
+            filter_str, 
+            attributes=attrs,
+            paged_size=500,
+            generator=True
+        )
+
         return response
 
 def get_ldap_groups(ldap_server, ldap_user, ldap_authtok):
+# TODO:
+# do_ldap_fallback_search, get_ldap_groups, and get_ldap_active_users_and_groups should be a method of the LDAPSearch class
+# script calling this lib should init LDAPSearch, then call the method that asks for the info it wants.
+# Be able to feed in either one server's config to the LDAPSearch, or a conffile to parse with a list of >=1 LDAP servers to do fallback searches with.
+
+def do_ldap_fallback_search(search_ou, search_filter, attrs, ldap_config: configparser.ConfigParser):
+    response = None
+
+    if ldap_config == None:
+        raise EmptyConfiguration(
+            "Search Attempted with \"None\" config object."
+        )
+
+    for section in ldap_config.sections():
+        print(f"Attempting search with server {section}")
+        try:
+            server_url = ldap_config.get(section, LDAP_CONFIG_KEYS.LDAP_Server_URL)
+            search_base = ldap_config.get(section, LDAP_CONFIG_KEYS.LDAP_Search_Base)
+            search_user = ldap_config.get(section, LDAP_CONFIG_KEYS.LDAP_User)
+            authtok_file = ldap_config.get(section, LDAP_CONFIG_KEYS.LDAP_AuthTok_File)
+            authtok = get_ldap_authtok(authtok_file)
+
+            searcher = LDAP_Server(ldap_server=server_url, ldap_user=search_user, ldap_authtok=authtok)
+            response = searcher.search(search_ou, search_base, search_filter, attrs)
+            
+            #If we get a response from one of the servers, we don't need to check the rest 
+            if not response is None:
+                print(f"Response found for server {section}.")
+                break
+        # Perm issue reading token file
+        except PermissionError as permError:
+            print(f"Permission Error when attempting search for {section}: {permError}.")
+        # Problem getting LDAP Response
+        except LDAPException as ldapError:
+            print(f"Exception occurred when attempting search for {section}: {ldapError}.")
+            continue
+
+    if response is None:
+        raise NoLDAPResponse(
+            f"No response found via LDAP servers: {[section for section in ldap_config]}."
+        )
+
+    return response
+
     ldap_group_osggids = set()
     searcher = LDAPSearch(ldap_server, ldap_user, ldap_authtok)
     response = searcher.search("groups", "(cn=*)", ["gidNumber"])
