@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3.11
 
 import os
 import re
@@ -152,4 +152,3 @@ if __name__ == "__main__":
     except (RuntimeError, urllib.error.HTTPError) as e:
         print(e, file=sys.stderr)
         sys.exit(1)
-
