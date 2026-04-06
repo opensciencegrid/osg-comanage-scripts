@@ -281,7 +281,6 @@ class LDAP_Server:
 
         return response
 
-def get_ldap_groups(ldap_server, ldap_user, ldap_authtok):
 # TODO:
 # do_ldap_fallback_search, get_ldap_groups, and get_ldap_active_users_and_groups should be a method of the LDAPSearch class
 # script calling this lib should init LDAPSearch, then call the method that asks for the info it wants.
@@ -326,22 +325,33 @@ def do_ldap_fallback_search(search_ou, search_filter, attrs, ldap_config: config
 
     return response
 
+def get_ldap_groups(config=None):
     ldap_group_osggids = set()
-    searcher = LDAPSearch(ldap_server, ldap_user, ldap_authtok)
-    response = searcher.search("groups", "(cn=*)", ["gidNumber"])
+
+    response = do_ldap_fallback_search(
+        search_ou="groups",
+        search_filter="(cn=*)",
+        attrs=["gidNumber"],
+        ldap_config=config
+    )
+
     for group in response:
         ldap_group_osggids.add(group["attributes"]["gidNumber"])
     return ldap_group_osggids
 
 
-def get_ldap_active_users_and_groups(ldap_server, ldap_user, ldap_authtok, filter_group_name=None):
+def get_ldap_active_users_and_groups(filter_group_name=None, config=None):
     """ Retrieve a dictionary of active users from LDAP, with their group memberships. """
     ldap_active_users = dict()
     filter_str = ("(isMemberOf=CO:members:active)" if filter_group_name is None 
                   else f"(&(isMemberOf={filter_group_name})(isMemberOf=CO:members:active))")
 
-    searcher = LDAPSearch(ldap_server, ldap_user, ldap_authtok)
-    response = searcher.search("people", filter_str, ["employeeNumber", "isMemberOf"])
+    response = do_ldap_fallback_search(
+        search_ou="people",
+        search_filter=filter_str,
+        attrs=["employeeNumber", "isMemberOf"],
+        ldap_config=config
+    )
 
     for person in response:
         ldap_active_users[person["attributes"]["employeeNumber"]] = person["attributes"].get("isMemberOf", [])
