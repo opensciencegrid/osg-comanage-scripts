@@ -11,8 +11,6 @@ import comanage_utils as utils
 SCRIPT = os.path.basename(__file__)
 ENDPOINT = "https://registry-test.cilogon.org/registry/"
 TOPOLOGY_ENDPOINT = "https://topology.opensciencegrid.org/"
-LDAP_SERVER = "ldaps://ldap-test.cilogon.org"
-LDAP_USER = "uid=registry_user,ou=system,o=OSG,o=CO,dc=cilogon,dc=org"
 OSG_CO_ID = 8
 CACHE_FILENAME = "COmanage_Projects_cache.txt"
 CACHE_LIFETIME_HOURS = 0.5

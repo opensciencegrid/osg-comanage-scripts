@@ -15,22 +15,18 @@ from dataclasses import dataclass
 
 #PRODUCTION VALUES
 
-PRODUCTION_ENDPOINT = "https://registry.cilogon.org/registry/"
-PRODUCTION_LDAP_SERVER = "ldaps://ldap.cilogon.org"
-PRODUCTION_LDAP_USER = "uid=readonly_user,ou=system,o=OSG,o=CO,dc=cilogon,dc=org"
-PRODUCTION_OSG_CO_ID = 7
-PRODUCTION_UNIX_CLUSTER_ID = 1
-PRODUCTION_LDAP_TARGET_ID = 6
-LDAP_BASE_DN = "o=OSG,o=CO,dc=cilogon,dc=org"
+# PRODUCTION_ENDPOINT = "https://registry.cilogon.org/registry/"
+# PRODUCTION_OSG_CO_ID = 7
+# PRODUCTION_UNIX_CLUSTER_ID = 1
+# PRODUCTION_LDAP_TARGET_ID = 6
 
 #TEST VALUES
 
-TEST_ENDPOINT = "https://registry-test.cilogon.org/registry/"
-TEST_LDAP_SERVER = "ldaps://ldap-test.cilogon.org"
-TEST_LDAP_USER ="uid=registry_user,ou=system,o=OSG,o=CO,dc=cilogon,dc=org"
-TEST_OSG_CO_ID = 8
-TEST_UNIX_CLUSTER_ID = 10
-TEST_LDAP_TARGET_ID = 9
+# TEST_ENDPOINT = "https://registry-test.cilogon.org/registry/"
+# TEST_LDAP_SERVER_LIST = ["ldaps://ldap-test.cilogon.org"]
+# TEST_OSG_CO_ID = 8
+# TEST_UNIX_CLUSTER_ID = 10
+# TEST_LDAP_TARGET_ID = 9
 
 # Value for the base of the exponential backoff
 TIMEOUT_BASE = 5
@@ -74,7 +70,6 @@ class Error(Exception):
     """Base exception class for all exceptions defined"""
     pass
 
-
 class URLRequestError(Error):
     """Class for exceptions due to not being able to fulfill a URLRequest"""
     pass
@@ -86,6 +81,7 @@ class EmptyConfiguration(Error):
 class NoLDAPResponse(Error):
     """Class for exceptions due to being unable to get any request from any configured LDAP servers."""
     pass
+
 
 def getpw(user, passfd, passfile):
     if ":" in user:
@@ -115,6 +111,7 @@ def get_ldap_authtok(ldap_authfile):
     else:
         raise PermissionError
     return ldap_authtok
+
 
 def read_ldap_conffile(ldap_conffile_path):
     config = configparser.ConfigParser(allow_no_value=True)
@@ -281,6 +278,7 @@ class LDAP_Server:
 
         return response
 
+
 # TODO:
 # do_ldap_fallback_search, get_ldap_groups, and get_ldap_active_users_and_groups should be a method of the LDAPSearch class
 # script calling this lib should init LDAPSearch, then call the method that asks for the info it wants.
@@ -324,6 +322,7 @@ def do_ldap_fallback_search(search_ou, search_filter, attrs, ldap_config: config
         )
 
     return response
+
 
 def get_ldap_groups(config=None):
     ldap_group_osggids = set()
@@ -424,6 +423,7 @@ def provision_group(gid, provision_target, endpoint, authstr):
         "Synchronous" : True
     }
     return call_api3(POST, path, data, endpoint, authstr)
+
 
 def provision_group_members(gid, prov_id, endpoint, authstr):
     data = {
