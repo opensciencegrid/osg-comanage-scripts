@@ -4,9 +4,13 @@ import os
 import re
 import json
 import time
+import configparser
 import urllib.error
 import urllib.request
+from enum import StrEnum
+from pathlib import Path
 from ldap3 import Server, Connection, ALL, SAFE_SYNC, Tls
+from ldap3.core.exceptions import LDAPException
 from dataclasses import dataclass
 
 #PRODUCTION VALUES
@@ -32,6 +36,33 @@ TEST_LDAP_TARGET_ID = 9
 TIMEOUT_BASE = 5
 MAX_ATTEMPTS = 5
 
+# LDAP Search Bases
+
+# LDAP Server Connection and Search Config, required keys
+class LDAP_CONFIG_KEYS(StrEnum):
+    LDAP_Server_URL = "LDAPServerURl"
+    LDAP_Search_Base = "SearchBase"
+    LDAP_User = "User"
+    LDAP_AuthTok_File = "AuthTokenFile"
+
+LDAP_CONFIG_USAGE_MESSAGE = f"""
+LDAP CONNECTION CONFIG:
+File at LDAP_CONFIG_PATH should be in ini format, servers will be attempted in descending order.
+An example section of this config file follows:
+
+---
+
+[human_server_name] # arbitrary human label for this server's config
+{LDAP_CONFIG_KEYS.LDAP_Server_URL} = ldaps://ldap-replica-1.osg.chtc.io      # URL to reach this LDAP server from
+{LDAP_CONFIG_KEYS.LDAP_Search_Base} = dc=osg-htc,dc=org                      # LDAP Search Base 
+{LDAP_CONFIG_KEYS.LDAP_User} = cn=readonly,ou=system,dc=osg-htc,dc=org       # full LDAP user DN 
+{LDAP_CONFIG_KEYS.LDAP_AuthTok_File} = /etc/ldap-secrets/osg-ldap/authtoken  # file containing authtoken for access
+
+---
+
+Config file should contain one such section per LDAP server to communicate with.
+"""
+
 
 GET    = "GET"
 PUT    = "PUT"
@@ -48,6 +79,13 @@ class URLRequestError(Error):
     """Class for exceptions due to not being able to fulfill a URLRequest"""
     pass
 
+class EmptyConfiguration(Error):
+    """Class for exceptions due to loading an empty Config file, or one where every section lacked the required keys"""
+    pass
+
+class NoLDAPResponse(Error):
+    """Class for exceptions due to being unable to get any request from any configured LDAP servers."""
+    pass
 
 def getpw(user, passfd, passfile):
     if ":" in user:
@@ -77,6 +115,51 @@ def get_ldap_authtok(ldap_authfile):
     else:
         raise PermissionError
     return ldap_authtok
+
+def read_ldap_conffile(ldap_conffile_path):
+    config = configparser.ConfigParser(allow_no_value=True)
+
+    print(f"Attempting to read config from {ldap_conffile_path}")
+    config.read(ldap_conffile_path)
+    misconfigured_sections = list()
+    for section in config.sections():
+        for key in LDAP_CONFIG_KEYS:
+            # All servers must have all required keys for operation
+            if not config.has_option(section, key) or config.get(section, key) == "":
+                print(f"Section \"{section}\": required key \"{key}\" missing, ignoring section.")
+                misconfigured_sections.append(section)
+                break
+        # For-Else to only check key values if we know the required ones exist (i.e. we didn't break)
+        else:
+            # All server AuthTok files must exist, be files, and not be empty
+            token_path = Path(config.get(section, LDAP_CONFIG_KEYS.LDAP_AuthTok_File))
+            try:
+                if not token_path.exists():
+                    print(f"Section \"{section}\": AuthToken File missing or non-file, ignoring section.")
+                    misconfigured_sections.append(section)
+                    continue
+                if token_path.stat().st_size == 0 :
+                    print(f"Section \"{section}\": AuthToken File is empty, ignoring section.")
+                    misconfigured_sections.append(section)
+                    continue
+            except OSError as e:
+                print(f"Section \"{section}\": Exception raised while checking AuthTok File: {e}, skipping section.")
+                misconfigured_sections.append(section)
+                continue
+
+    for section in misconfigured_sections:
+        print(f"Dropping section {section}")
+        config.remove_section(section)
+
+    # if their are no servers in the file that have all required keys
+    if len(config.sections()) == 0:
+        #when script needs to say LDAP Config required, raise a EmptyConfiguration error
+        #usage("LDAP Config File Required")
+        raise EmptyConfiguration(
+            f"Config file at {ldap_conffile_path} was empty or all sections lacked required keys."
+        )
+    print(f"Finished reading config from {ldap_conffile_path}")
+    return config
 
 
 def mkrequest(method, target, data, endpoint, authstr, **kw):
