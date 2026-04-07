@@ -23,7 +23,6 @@ from dataclasses import dataclass
 #TEST VALUES
 
 # TEST_ENDPOINT = "https://registry-test.cilogon.org/registry/"
-# TEST_LDAP_SERVER_LIST = ["ldaps://ldap-test.cilogon.org"]
 # TEST_OSG_CO_ID = 8
 # TEST_UNIX_CLUSTER_ID = 10
 # TEST_LDAP_TARGET_ID = 9
@@ -31,8 +30,6 @@ from dataclasses import dataclass
 # Value for the base of the exponential backoff
 TIMEOUT_BASE = 5
 MAX_ATTEMPTS = 5
-
-# LDAP Search Bases
 
 # LDAP Server Connection and Search Config, required keys
 class LDAP_CONFIG_KEYS(str, Enum):
@@ -51,7 +48,7 @@ An example section of this config file follows:
 
 ---
 
-[human_server_name] # arbitrary human label for this server's config
+[human_server_name]          # arbitrary human label for this server's config
 {LDAP_CONFIG_KEYS.LDAP_Server_URL} = ldaps://ldap-replica-1.osg.chtc.io      # URL to reach this LDAP server from
 {LDAP_CONFIG_KEYS.LDAP_Search_Base} = dc=osg-htc,dc=org                      # LDAP Search Base 
 {LDAP_CONFIG_KEYS.LDAP_User} = cn=readonly,ou=system,dc=osg-htc,dc=org       # full LDAP user DN 

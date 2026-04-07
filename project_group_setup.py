@@ -19,17 +19,16 @@ _usage = f"""\
 usage: [PASS=...] {SCRIPT} [OPTIONS]
 
 OPTIONS:
-  -u USER[:PASS]      specify USER and optionally PASS on command line
-  -c OSG_CO_ID        specify OSG CO ID (default = {OSG_CO_ID})
-  -g CLUSTER_ID       specify UNIX Cluster ID (default = {UNIX_CLUSTER_ID})
-  -l LDAP_CONFIG_PATH specify path to LDAP Config file for fallback-search servers
-  -t LDAP_TARGET      specify LDAP Provsion ID (defult = {LDAP_TARGET_ID})
-  -d passfd           specify open fd to read PASS
-  -f passfile         specify path to file to open and read PASS
-  -e ENDPOINT         specify REST endpoint
-                        (default = {ENDPOINT})
-  -o outfile          specify output file (default: write to stdout)
-  -h                  display this help text
+  -u USER[:PASS]         specify USER and optionally PASS on command line
+  -c OSG_CO_ID           specify OSG CO ID (default = {OSG_CO_ID})
+  -g CLUSTER_ID          specify UNIX Cluster ID (default = {UNIX_CLUSTER_ID})
+  -l LDAP_CONFIG_PATH    specify path to LDAP Config file for fallback-search servers
+  -t LDAP_TARGET         specify LDAP Provsion ID (defult = {LDAP_TARGET_ID})
+  -d passfd              specify open fd to read PASS
+  -f passfile            specify path to file to open and read PASS
+  -e ENDPOINT            specify REST endpoint (default = {ENDPOINT})
+  -o outfile             specify output file (default: write to stdout)
+  -h                     display this help text
 
 PASS for USER is taken from the first of:
   1. -u USER:PASS

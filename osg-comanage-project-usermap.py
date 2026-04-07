@@ -20,18 +20,17 @@ _usage = f"""\
 usage: {SCRIPT} [OPTIONS]
 
 OPTIONS:
-  -u USER[:PASS]      specify USER and optionally PASS on command line
-  -c OSG_CO_ID        specify OSG CO ID (default = {OSG_CO_ID})
-  -l LDAP_CONFIG_PATH        specify path to LDAP Config file for fallback-search servers
-  -d passfd           specify open fd to read PASS
-  -f passfile         specify path to file to open and read PASS
-  -e ENDPOINT         specify REST endpoint
-                        (default = {ENDPOINT})
-  -o outfile          specify output file (default: write to stdout)
-  -g filter_group     filter users by group name (eg, 'ap1-login')
-  -m localmaps        specify a comma-delimited list of local HTCondor mapfiles to merge into outfile
-  -n min_users        Specify minimum number of users required to update the output file (default: 100)
-  -h                  display this help text
+  -u USER[:PASS]         specify USER and optionally PASS on command line
+  -c OSG_CO_ID           specify OSG CO ID (default = {OSG_CO_ID})
+  -l LDAP_CONFIG_PATH    specify path to LDAP Config file for fallback-search servers
+  -d passfd              specify open fd to read PASS
+  -f passfile            specify path to file to open and read PASS
+  -e ENDPOINT            specify REST endpoint (default = {ENDPOINT})
+  -o outfile             specify output file (default: write to stdout)
+  -g filter_group        filter users by group name (eg, 'ap1-login')
+  -m localmaps           specify a comma-delimited list of local HTCondor mapfiles to merge into outfile
+  -n min_users           Specify minimum number of users required to update the output file (default: 100)
+  -h                     display this help text
 
 PASS for USER is taken from the first of:
   1. -u USER:PASS
