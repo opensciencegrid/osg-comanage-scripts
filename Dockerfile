@@ -1,4 +1,4 @@
-FROM library/python:3.11-alpine
+FROM library/python:3.9-alpine
 
 LABEL maintainer OSG Software <help@opensciencegrid.org>
 

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3.11
+#!/usr/bin/env python3
 
 import os
 import re
@@ -7,7 +7,7 @@ import time
 import configparser
 import urllib.error
 import urllib.request
-from enum import StrEnum
+from enum import Enum
 from pathlib import Path
 from ldap3 import Server, Connection, ALL, SAFE_SYNC, Tls
 from ldap3.core.exceptions import LDAPException
@@ -35,11 +35,14 @@ MAX_ATTEMPTS = 5
 # LDAP Search Bases
 
 # LDAP Server Connection and Search Config, required keys
-class LDAP_CONFIG_KEYS(StrEnum):
+class LDAP_CONFIG_KEYS(str, Enum):
     LDAP_Server_URL = "LDAPServerURl"
     LDAP_Search_Base = "SearchBase"
     LDAP_User = "User"
     LDAP_AuthTok_File = "AuthTokenFile"
+    
+    def __str__(self):
+        return f'{self.value}'
 
 LDAP_CONFIG_USAGE_MESSAGE = f"""
 LDAP CONNECTION CONFIG:
