@@ -255,7 +255,7 @@ def get_datalist(data, listname):
     return data[listname] if data else []
 
 
-class LDAP_Server:
+class LDAPServer:
     """ Wrapper class for LDAP searches. """
     server: Server = None
     connection: Connection = None
@@ -301,7 +301,7 @@ def do_ldap_fallback_search(search_ou, search_filter, attrs, ldap_config: config
             authtok_file = ldap_config.get(section, LDAP_CONFIG_KEYS.LDAP_AuthTok_File)
             authtok = get_ldap_authtok(authtok_file)
 
-            searcher = LDAP_Server(ldap_server=server_url, ldap_user=search_user, ldap_authtok=authtok)
+            searcher = LDAPServer(ldap_server=server_url, ldap_user=search_user, ldap_authtok=authtok)
             response = searcher.search(search_ou, search_base, search_filter, attrs)
             
             #If we get a response from one of the servers, we don't need to check the rest 
