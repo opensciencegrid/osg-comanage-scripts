@@ -152,4 +152,3 @@ if __name__ == "__main__":
     except (RuntimeError, urllib.error.HTTPError) as e:
         print(e, file=sys.stderr)
         sys.exit(1)
-
