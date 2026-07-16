@@ -31,7 +31,7 @@ TIMEOUT_BASE = 5
 MAX_ATTEMPTS = 5
 
 # HTTP return codes we shouldn't attempt to retry
-HTTP_NO_RETRY_CODES = {401, 404, 405, 500}
+HTTP_NO_RETRY_CODES = {401, 403, 404, 405, 500}
 
 GET    = "GET"
 PUT    = "PUT"
@@ -206,8 +206,7 @@ def update_co_person_identifier(id_, type, identifier, person_id, endpoint, auth
         }
       ]
     }
-    return call_api3(PUT, "/api/v2/identifiers" % id_, id_data, endpoint, authstr, )
-    #return call_api3(PUT, "identifiers/%s.json" % id_, id_data, endpoint, authstr)
+    return call_api3(PUT, "identifiers/%s.json" % id_, id_data, endpoint, authstr)
 
 
 def delete_identifier(id_, endpoint, authstr):
@@ -271,7 +270,7 @@ def create_co_group(groupname, description, coId, endpoint, authstr, open=False,
         "RequestType" : "CoGroups",
         "Version"     : "1.0"
     }
-    return call_api3(POST, "co_groups/.json", data, endpoint, authstr)
+    return call_api3(POST, "co_groups.json", data, endpoint, authstr)
 
 
 def rename_co_group(gid, group, newname, endpoint, authstr):

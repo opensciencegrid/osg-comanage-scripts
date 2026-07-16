@@ -63,25 +63,41 @@ def parse_options(args):
         if op == '-g': options.import_group_id = arg
         if op == '-o': options.import_cou_id = arg
 
+    missing = []
+    if options.input_file is None:
+        missing.append("-i <input_file>")
+    if options.mapping_file is None:
+        missing.append("-m <mapping_file>")
+    if options.import_group_id is None:
+        missing.append("-g <import_group_id>")
+    if options.import_cou_id is None:
+        missing.append("-o <import_cou_id>")
+    if missing:
+        usage("Missing required options: " + ", ".join(missing))
+
     try:
         user, passwd = utils.getpw(options.user, passfd, passfile)
         options.authstr = utils.mkauthstr(user, passwd)
     except PermissionError:
         usage("PASS required")
 
-
 def read_data_dump():
-    data_json = []
     with open(options.input_file, 'r', encoding='utf-8') as input_file:
         data_json = json.load(input_file)
-        for entry in range(len(data_json)):
-            for key_index in range(len(data_json[entry]["public_keys"])):
-                key = data_json[entry]["public_keys"][key_index]
-                key_sections = str(key).split()
-                if len(key_sections) >= 2:
-                    data_json[entry]["public_keys"][key_index] = {"type" : key_sections[0], "pkey" : key_sections[1]}
-                if len(key_sections) >= 3:
-                    data_json[entry]["public_keys"][key_index].update({"authenticator" : key_sections[2]})
+
+    for entry in data_json:
+        parsed_keys = []
+        for key in entry.get("public_keys", []):
+            key_sections = str(key).split()
+            if len(key_sections) < 2:
+                print(f"Warning: ignoring invalid SSH public key for user {entry.get('username', '<unknown>')}: {key!r}")
+                continue
+            key_obj = {"type": key_sections[0], "pkey": key_sections[1]}
+            if len(key_sections) >= 3:
+                key_obj["authenticator"] = " ".join(key_sections[2:])
+            parsed_keys.append(key_obj)
+        entry["public_keys"] = parsed_keys
+
     with open(options.mapping_file, 'r', encoding='utf-8') as mapping_file:
         mapping_json = json.load(mapping_file)
     return data_json, mapping_json
@@ -166,8 +182,10 @@ def fix_username(co_person_record, new_username):
 
 def create_unix_cluster_group(co_person_record):
     identifiers_list = co_person_record["Identifier"]
-    username = next((item["identifier"] for item in identifiers_list if item["type"] == "osguser"))
-    uid = next((item["identifier"] for item in identifiers_list if item["type"] == "uid"))
+    username = next((item["identifier"] for item in identifiers_list if item.get("type") == "osguser"), None)
+    uid = next((item["identifier"] for item in identifiers_list if item.get("type") == "uid"), None)
+    if username is None or uid is None:
+        raise ValueError(f"Missing required identifiers (osguser/uid) in CO Person record: {identifiers_list}")
     description = f"Unix Cluster Group for {username}"
     result = utils.create_co_group(username, description, options.osg_co_id, options.endpoint, options.authstr)
     ucg = None
