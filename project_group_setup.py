@@ -7,8 +7,6 @@ import comanage_utils as utils
 
 SCRIPT = os.path.basename(__file__)
 ENDPOINT = "https://registry.cilogon.org/registry/"
-LDAP_SERVER = "ldaps://ldap.cilogon.org"
-LDAP_USER = "uid=readonly_user,ou=system,o=OSG,o=CO,dc=cilogon,dc=org"
 OSG_CO_ID = 7
 UNIX_CLUSTER_ID = 1
 LDAP_TARGET_ID = 6
@@ -21,25 +19,25 @@ _usage = f"""\
 usage: [PASS=...] {SCRIPT} [OPTIONS]
 
 OPTIONS:
-  -u USER[:PASS]      specify USER and optionally PASS on command line
-  -c OSG_CO_ID        specify OSG CO ID (default = {OSG_CO_ID})
-  -g CLUSTER_ID       specify UNIX Cluster ID (default = {UNIX_CLUSTER_ID})
-  -l LDAP_TARGET      specify LDAP Provsion ID (defult = {LDAP_TARGET_ID})
-  -s LDAP_SERVER      specify LDAP server
-  -y LDAP_USER        specify LDAP server user
-  -p LDAP authtok     specify LDAP server authtok
-  -d passfd           specify open fd to read PASS
-  -f passfile         specify path to file to open and read PASS
-  -e ENDPOINT         specify REST endpoint
-                        (default = {ENDPOINT})
-  -o outfile          specify output file (default: write to stdout)
-  -h                  display this help text
+  -u USER[:PASS]         specify USER and optionally PASS on command line
+  -c OSG_CO_ID           specify OSG CO ID (default = {OSG_CO_ID})
+  -g CLUSTER_ID          specify UNIX Cluster ID (default = {UNIX_CLUSTER_ID})
+  -l LDAP_CONFIG_PATH    specify path to LDAP Config file for fallback-search servers
+  -t LDAP_TARGET         specify LDAP Provsion ID (defult = {LDAP_TARGET_ID})
+  -d passfd              specify open fd to read PASS
+  -f passfile            specify path to file to open and read PASS
+  -e ENDPOINT            specify REST endpoint (default = {ENDPOINT})
+  -o outfile             specify output file (default: write to stdout)
+  -h                     display this help text
 
 PASS for USER is taken from the first of:
   1. -u USER:PASS
   2. -d passfd (read from fd)
   3. -f passfile (read from file)
   4. read from $PASS env var
+
+{utils.LDAP_CONFIG_USAGE_MESSAGE}
+
 """
 
 
@@ -57,12 +55,10 @@ class Options:
     osg_co_id = OSG_CO_ID
     ucid = UNIX_CLUSTER_ID
     provision_target = LDAP_TARGET_ID
-    ldap_user = LDAP_USER
-    ldap_server = LDAP_SERVER
     outfile = None
     authstr = None
-    ldap_authtok = None
     project_gid_startval = PROJECT_GIDS_START
+    ldap_config = None
 
 
 options = Options()
@@ -70,7 +66,7 @@ options = Options()
 
 def parse_options(args):
     try:
-        ops, args = getopt.getopt(args, "u:c:g:l:p:d:f:e:o:s:y:h")
+        ops, args = getopt.getopt(args, "u:c:g:l:t:a:d:f:e:o:h")
     except getopt.GetoptError:
         usage()
 
@@ -89,10 +85,10 @@ def parse_options(args):
             options.osg_co_id = int(arg)
         if op == "-g":
             options.ucid = int(arg)
-        if op == "-l":
+        if op == "-t":
             options.provision_target = int(arg)
-        if op == "-p":
-            options.ldap_authtok = arg
+        if op == '-l':
+            ldap_config_path   = arg
         if op == "-d":
             passfd = int(arg)
         if op == "-f":
@@ -101,16 +97,17 @@ def parse_options(args):
             options.endpoint = arg
         if op == "-o":
             options.outfile = arg
-        if op == "-s":
-            options.ldap_server = arg
-        if op == "-y":
-            options.ldap_user = arg
 
     try:
         user, passwd = utils.getpw(options.user, passfd, passfile)
         options.authstr = utils.mkauthstr(user, passwd)
     except PermissionError:
         usage("PASS required")
+
+    try:
+        options.ldap_config = utils.read_ldap_conffile(ldap_config_path)
+    except utils.EmptyConfiguration:
+        usage("LDAP Config File Required. Was empty or lacked a valid server configuration.")
 
 
 def append_if_project(project_groups, group):
@@ -182,7 +179,7 @@ def get_projects_needing_cluster_groups(project_groups):
 
 def get_projects_needing_provisioning(project_groups):
     # project groups provisioned in LDAP
-    ldap_group_osggids = utils.get_ldap_groups(options.ldap_server, options.ldap_user, options.ldap_authtok)
+    ldap_group_osggids = utils.get_ldap_groups(options.ldap_config)
     try:
         # All project osggids
         project_osggids = set(
