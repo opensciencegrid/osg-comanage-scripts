@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import copy
 
 CO_PERSON = {
     "co_id": None,
@@ -167,16 +168,16 @@ def co_person_group_member(group_id, member=True, owner=False):
 
 
 def co_person_org_id(
-    osg_co_id, name, organization="", department="", title="", affiliation="member", id_list=[]
+    osg_co_id, name, organization="", department="", title="", affiliation="member", id_list=None
 ):
     #org_id = {"co_id" : osg_co_id}
-    org_id = ORG_IDENTITY.copy()
+    org_id = copy.deepcopy(ORG_IDENTITY)
     org_id["co_id"] = osg_co_id
     org_id["title"] = title
     org_id["o"] = organization
     org_id["ou"] = department
     org_id["affiliation"] = affiliation
-    org_id["Identifier"] = id_list
+    org_id["Identifier"] = [] if id_list is None else id_list
     org_id["Name"] = name
     return org_id
 
